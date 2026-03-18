@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Attendance App</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f6f9;
+      display: flex;
+      justify-content: center;
+      padding-top: 60px;
+    }
+
+    .container {
+      width: 400px;
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-bottom: 16px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .btn-login {
+      background: #007bff;
+      color: white;
+    }
+
+    .btn-checkin {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-checkout {
+      background: #dc3545;
+      color: white;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .status {
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    .success {
+      color: green;
+    }
+
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>CheckIn</h2>
+
+  <button class="btn-login" onclick="login()">Login</button>
+
+  <label>Datetime (P4)</label>
+  <input type="datetime-local" id="datetime" />
+
+  <button class="btn-checkin" id="btnCheckin" onclick="checkin()" disabled>
+    Checkin
+  </button>
+
+  <button class="btn-checkout" id="btnCheckout" onclick="checkout()" disabled>
+    Checkout
+  </button>
+
+  <div id="status" class="status"></div>
+</div>
+
+<script>
+const BASE_URL = "https://nodejs-beta-ten.vercel.app/api";
+
+let stoken = null;
+
+// format datetime -> yyyy-MM-dd HH:mm:ss
+function formatDateTime(value) {
+  const date = new Date(value);
+
+  const pad = (n) => n.toString().padStart(2, '0');
+
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} `
+       + `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function setStatus(msg, type="success") {
+  const el = document.getElementById("status");
+  el.innerText = msg;
+  el.className = "status " + type;
+}
+
+async function login() {
+  setStatus("Đang login...");
+
+  try {
+    const res = await fetch(BASE_URL + "/login", {
+      method: "POST"
+    });
+
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error);
+
+    stoken = data.stoken;
+
+    document.getElementById("btnCheckin").disabled = false;
+    document.getElementById("btnCheckout").disabled = false;
+
+    setStatus("Login thành công");
+
+  } catch (err) {
+    setStatus("Login fail: " + err.message, "error");
+  }
+}
+
+async function callAttendance(type) {
+  if (!stoken) {
+    setStatus("Chưa login", "error");
+    return;
+  }
+
+  const raw = document.getElementById("datetime").value;
+
+  if (!raw) {
+    setStatus("Chọn datetime trước", "error");
+    return;
+  }
+
+  const p4 = formatDateTime(raw);
+
+  setStatus("Đang gửi request...");
+
+  try {
+    const res = await fetch(BASE_URL + "/attendance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        stoken,
+        type,
+        p4
+      })
+    });
+
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error);
+
+    setStatus(type === "i" ? "Checkin OK at" + p4 : "Checkout OK at " + p4);
+
+  } catch (err) {
+    setStatus("Lỗi: " + err.message, "error");
+  }
+}
+
+function checkin() {
+  callAttendance("i");
+}
+
+function checkout() {
+  callAttendance("o");
+}
+
+// auto set current datetime
+window.onload = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById("datetime").value = now.toISOString().slice(0,16);
+};
+</script>
+
+</body>
+</html>
